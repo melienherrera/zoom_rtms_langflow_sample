@@ -11,7 +11,7 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 
 # Initialize LangChain components using LCEL (LangChain Expression Language)
 # Claude 3 Sonnet is used with temperature=0 for consistent, deterministic outputs
-llm = ChatAnthropic(model="claude-3-7-sonnet-20250219", temperature=0)
+llm = ChatAnthropic(model_name="claude-3-7-sonnet-20250219", temperature=0)
 
 # Define the prompt template for action item extraction
 # The template takes a transcript chunk and asks Claude to identify action items
@@ -59,7 +59,18 @@ class TranscriptProcessor:
         """
         try:
             result = action_item_chain.invoke({"transcript_chunk": transcript_chunk})
-            return result.content
+            # Handle the result properly - it could be a string or a list
+            if hasattr(result, 'content'):
+                content = result.content
+                if isinstance(content, str):
+                    return content
+                elif isinstance(content, list):
+                    # If it's a list, join the items
+                    return "\n".join(str(item) for item in content)
+                else:
+                    return str(content)
+            else:
+                return str(result)
         except Exception as e:
             print(f"Error extracting action items: {e}")
             return ""

@@ -94,8 +94,14 @@ async def handle_signaling_connection(meeting_uuid, stream_id, server_url):
     Steps 7-8: Handle keep-alive
     """
     print("Connecting to signaling WebSocket for meeting", meeting_uuid)
+    
+    # Configure SSL context to disable certificate verification
+    ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
+    
     try:
-        async with websockets.connect(server_url) as ws:
+        async with websockets.connect(server_url, ssl=ssl_context) as ws:
             if meeting_uuid not in active_connections:
                 active_connections[meeting_uuid] = {}
             active_connections[meeting_uuid]["signaling"] = ws
