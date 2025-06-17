@@ -1,33 +1,16 @@
 # External Dependencies
-from langchain_anthropic import ChatAnthropic  # Claude 3 integration
-from langchain.prompts import ChatPromptTemplate  # For structuring prompts
 from collections import deque  # For maintaining a fixed-size transcript history
 import os
 from dotenv import load_dotenv
+import requests
 
 # Load API key from environment
 load_dotenv()
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 
-# Initialize LangChain components using LCEL (LangChain Expression Language)
-# Claude 3 Sonnet is used with temperature=0 for consistent, deterministic outputs
-llm = ChatAnthropic(model_name="claude-3-7-sonnet-20250219", temperature=0)
+# Langflow API URL
+url = os.getenv("LANGFLOW_API_URL")  # The complete API endpoint URL for this flow
 
-# Define the prompt template for action item extraction
-# The template takes a transcript chunk and asks Claude to identify action items
-prompt = ChatPromptTemplate.from_template("""
-From the following meeting transcript snippet, extract all explicit or implicit action items.
-Be concise. List each item as a bullet point. Include assignees if mentioned.
-
-Transcript:
-{transcript_chunk}
-
-Action Items:
-""")
-
-# Create a processing chain using LCEL pipe operator
-# This combines the prompt template with the LLM for streamlined processing
-action_item_chain = prompt | llm
 
 class TranscriptProcessor:
     """
@@ -57,23 +40,30 @@ class TranscriptProcessor:
             
         Note: Uses error handling to ensure robustness during live processing
         """
+        # Request payload configuration
+        payload = {
+            "input_value": transcript_chunk,  # The transcript chunk to be processed by the flow
+            "output_type": "chat",  # Specifies the expected output format
+            "input_type": "chat"  # Specifies the input format
+        }
+
+        # Request headers
+        headers = {
+            "Content-Type": "application/json"
+        }
         try:
-            result = action_item_chain.invoke({"transcript_chunk": transcript_chunk})
-            # Handle the result properly - it could be a string or a list
-            if hasattr(result, 'content'):
-                content = result.content
-                if isinstance(content, str):
-                    return content
-                elif isinstance(content, list):
-                    # If it's a list, join the items
-                    return "\n".join(str(item) for item in content)
-                else:
-                    return str(content)
-            else:
-                return str(result)
-        except Exception as e:
-            print(f"Error extracting action items: {e}")
-            return ""
+            # Send API request to Langflow API
+            response = requests.request("POST", url, json=payload, headers=headers)
+            response.raise_for_status()  # Raise exception for bad status codes
+
+            # Print response
+            print(response.text)
+
+        except requests.exceptions.RequestException as e:
+            print(f"Error making API request: {e}")
+        except ValueError as e:
+            print(f"Error parsing response: {e}")
+            
 
     def process_new_transcript_chunk(self, chunk: str):
         """
@@ -111,4 +101,4 @@ class TranscriptProcessor:
                     self.action_items.append(item)
                     print("New Action Item:", item)
         except Exception as e:
-            print("LangChain processing error:", e) 
+            print("Langflow processing error:", e) 
